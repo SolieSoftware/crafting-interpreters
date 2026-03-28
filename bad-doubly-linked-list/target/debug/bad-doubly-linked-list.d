@@ -1,0 +1,1 @@
+/Users/solshortland/projects/crafting-interpreters/bad-doubly-linked-list/target/debug/bad-doubly-linked-list: /Users/solshortland/projects/crafting-interpreters/bad-doubly-linked-list/src/first.rs /Users/solshortland/projects/crafting-interpreters/bad-doubly-linked-list/src/lib.rs /Users/solshortland/projects/crafting-interpreters/bad-doubly-linked-list/src/main.rs
