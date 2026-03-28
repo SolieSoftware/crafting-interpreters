@@ -31,6 +31,6 @@ impl List {
                 self.head = node.next;
                 Some(node.elem)
             }
-        };
+        }
     } 
 }
