@@ -1,1 +1,0 @@
-/Users/solshortland/projects/crafting-interpreters/bad-singly-linked-list/target/debug/bad-doubly-linked-list: /Users/solshortland/projects/crafting-interpreters/bad-singly-linked-list/src/first.rs /Users/solshortland/projects/crafting-interpreters/bad-singly-linked-list/src/lib.rs /Users/solshortland/projects/crafting-interpreters/bad-singly-linked-list/src/main.rs
