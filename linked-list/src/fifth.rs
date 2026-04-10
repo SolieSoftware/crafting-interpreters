@@ -5,7 +5,7 @@ pub struct List<T> {
     tail: *mut Node<T> // NEW!
 }
 
-type Link<T> = Option<Box<Node<T>>>;
+type Link<T> = *mut Node<T>;
 
 struct Node<T> {
     elem: T,
@@ -14,46 +14,129 @@ struct Node<T> {
 
 impl<T> List<T> {
     pub fn new() -> Self {
-        List { head: None, tail: ptr::null_mut() }
+        List { head: ptr::null_mut(), tail: ptr::null_mut() }
     }
 
     pub fn push(&mut self, elem: T) {
-    let mut new_tail = Box::new(Node {
-        elem: elem,
-        next: None,
-    });
-    // generate raw pointer to the new tail node, which will be used to update the tail pointer of the list
-    let raw_tail: *mut _ = &mut *new_tail;
-
-    // .is_null checks for null, equivalent to checking for None
-    if !self.tail.is_null() {
-        // If the old tail existed, update it to point to the new tail
         unsafe {
-            (*self.tail).next = Some(new_tail);
-        }
-    } else {
-        // Otherwise, update the head to point to it
-        self.head = Some(new_tail);
-    }
+            // Immediately convert the Box into a raw pointer
+            let new_tail = Box::into_raw(Box::new(Node {
+                elem: elem,
+                next: ptr::null_mut(),
+            }));
 
-    self.tail = raw_tail;
+            if !self.tail.is_null() {
+                (*self.tail).next = new_tail;
+            } else {
+                self.head = new_tail;
+            }
+
+            self.tail = new_tail;
+        }
     }
 
     pub fn pop(&mut self) -> Option<T> {
-    self.head.take().map(|head| {
-        let head = *head;
-        self.head = head.next;
+        unsafe {
+            if self.head.is_null() {
+                None
+            } else {
+                // RISE FROM THE GRAVE
+                let head = Box::from_raw(self.head);
+                self.head = head.next;
 
-        if self.head.is_none() {
-            self.tail = ptr::null_mut();
+                if self.head.is_null() {
+                    self.tail = ptr::null_mut();
+                }
+
+                Some(head.elem)
+            }
         }
-
-        head.elem
-    })
+    }
+    
+    pub fn peek(&self) -> Option<&T> {
+        unsafe {
+            self.head.as_ref().map(|node| &node.elem)
+        }
     }
 
-
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        unsafe {
+            self.head.as_mut().map(|node| &mut node.elem)
+        }
+    }
 }
+
+
+impl<T> Drop for List<T> {
+    fn drop(&mut self) {
+        while let Some(_) = self.pop() { }
+    }
+}
+
+pub struct IntoIter<T>(List<T>);
+
+pub struct Iter<'a, T> {
+    next: Option<&'a Node<T>>,
+}
+
+pub struct IterMut<'a, T> {
+    next: Option<&'a mut Node<T>>,
+}
+
+impl<T> List<T> {
+    pub fn into_iter(self) -> IntoIter<T> {
+        IntoIter(self)
+    }
+
+    pub fn iter(&self) -> Iter<'_, T> {
+        unsafe {
+            Iter { next: self.head.as_ref() }
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        unsafe {
+            IterMut { next: self.head.as_mut() }
+        }
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            self.next.map(|node| {
+                self.next = node.next.as_ref();
+                &node.elem
+            })
+        }
+    }
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            self.next.take().map(|node| {
+                self.next = node.next.as_mut();
+                &mut node.elem
+            })
+        }
+    }
+}
+
+
+
+
 
 #[cfg(test)]
 mod test {
@@ -95,6 +178,43 @@ mod test {
         assert_eq!(list.pop(), Some(7));
         assert_eq!(list.pop(), None);
     }
+
+    #[test]
+    fn miri_food() {
+        let mut list = List::new();
+
+        list.push(1);
+        list.push(2);
+        list.push(3);
+
+        assert!(list.pop() == Some(1));
+        list.push(4);
+        assert!(list.pop() == Some(2));
+        list.push(5);
+
+        assert!(list.peek() == Some(&3));
+        list.push(6);
+        list.peek_mut().map(|x| *x *= 10);
+        assert!(list.peek() == Some(&30));
+        assert!(list.pop() == Some(30));
+
+        for elem in list.iter_mut() {
+            *elem *= 100;
+        }
+
+        let mut iter = list.iter();
+        assert_eq!(iter.next(), Some(&400));
+        assert_eq!(iter.next(), Some(&500));
+        assert_eq!(iter.next(), Some(&600));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+
+        assert!(list.pop() == Some(400));
+        list.peek_mut().map(|x| *x *= 10);
+        assert!(list.peek() == Some(&5000));
+        list.push(7);
+
+        // Drop it on the ground and let the dtor exercise itself
+    }
+
 }
-
-
